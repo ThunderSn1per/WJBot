@@ -43,7 +43,7 @@ class subr(BaseCog):
 		self.discordBans = []
 		self.bansLog = []
 		self.passmsg = None
-		self.blacklist = ["168309055578701824"]													#Blacklisted IDs of users that will NEVER be picked for customs
+		self.blacklist = [168309055578701824]													#Blacklisted IDs of users that will NEVER be picked for customs
 		subr.load(self)																			#Run the load() function
 	
 	async def openRoster(self, ctx, pw):
@@ -121,6 +121,8 @@ class subr(BaseCog):
 			json.dump(self.bansLog, outfile)
 		with open(self.path + "bans.json", 'w') as outfile:
 			json.dump(self.bans, outfile)
+		with open(self.path + "teams.json", "w") as outfile:
+			json.dump(self.teams, outfile)
 			
 	def load(self):
 		self.customs = json.load(open(self.path + "roster.json"))
@@ -130,6 +132,7 @@ class subr(BaseCog):
 		self.discordBans = json.load(open(self.path + "dBans.json"))
 		self.faceitBans = json.load(open(self.path + "fBans.json"))
 		self.bansLog = json.load(open(self.path + "bansLog.json"))
+		self.teams = json.load(open(self.path + "teams.json"))
 		
 		if(self.pwdate=="18:04"):
 			subr.banCheck(self, passive=0)
@@ -150,8 +153,30 @@ class subr(BaseCog):
 			return 1
 	
 	def checkBlacklist(self, ctx):
-		uid = str(ctx.author.id)
+		uid = ctx.author.id
 		return (uid in self.blacklist)
+	
+	def teamCheck(self, id):
+		for sl in self.teams:
+			if id in sl:
+				return (self.teams.index(sl))
+		return "clear"
+		
+	def clearEmptyTeams(self):
+		for p in self.customs:							#
+			if(isinstance(p, list)):					#
+				for q in self.chosen:					#Remove players who have already played
+					if q in p:							#
+						p.remove(q)		#
+			else:
+				if p in self.chosen:
+					self.customs.remove(p)
+					
+		for a in self.customs:							#
+			if isinstance(a, list):						#Clears empty teams
+				if(len(a) == 1 and a[0][:2] == "wj"):	#
+					self.customs.remove(a)				#
+		subr.save(self)									#Save after clearing empty teams
 		
 	
 	async def on_message(self, message):
@@ -208,9 +233,21 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 	
 	@commands.command(pass_context=True, no_pm=True)
 	async def addme(self, ctx):
+		###### START OF CHECKS ######
 		if(subr.checkBlacklist(self, ctx) == 1):
-			await ctx.author.send("You have been blacklisted and cannot join Wacky's roster. If you don't know why, please PM a moderator on Discord.")
-		elif(subr.channelTest(self, ctx) == 1):
+			try:
+				await ctx.author.send("You have been blacklisted and cannot join Wacky's roster. If you don't know why, please PM a moderator on Discord.")
+			except:
+				None
+			return
+		if(subr.teamCheck(self, ctx.author.id) == "clear"):
+			None
+		else:
+			tm = await ctx.send(ctx.author.mention + " you are already part of a team please leave the team (!removeme) to join solo")
+			await asyncio.sleep(3)
+			await tm.delete()
+		###### END OF CHECKS ######
+		if(subr.channelTest(self, ctx) == 1):
 			if(str(ctx.message.channel.name) in self.channels) == 0:
 				return
 			await ctx.message.delete()
@@ -241,27 +278,114 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 					await ctx.send(user.mention + " - Roster is closed, cannot DM this user.")
 	
 	@commands.command(pass_context=True)
-	async def createteam(self, ctx):
-		
-	
-	@commands.command(pass_context=True)
-	async def addteam(self, ctx, a: discord.Member=None, b: discord.Member=None, c: discord.Member=None):
-		if a == None:
+	async def teamCreate(self, ctx):
+		await ctx.message.delete()
+		###### START OF CHECKS ######
+		if(subr.checkBlacklist(self, ctx) == 1):
 			try:
-				await ctx.author.send("You need at least 2 members to form a team")
+				await ctx.author.send("You have been blacklisted and cannot join Wacky's roster. If you don't know why, please PM a moderator on Discord.")
 			except:
 				None
-		else:
-			None
-			
-		#Give Unique ID used to join a team
-		#Checks and Adding
+			return
+		if ctx.author.id in self.customs:
+			tm = await ctx.send(ctx.author.mention + " you are on the Roster as a solo player, please remove yourself (!removeme) first.")
+			await asyncio.sleep(3)
+			await tm.delete()
+			return
+		if ctx.author.id in self.chosen:
+			tm = await ctx.send(ctx.author.mention + " you have already been picked to play on Wacky's team once. You cannot do so again today.")
+			await asyncio.sleep(3)
+			await tm.delete()
+			return
+		###### END OF CHECKS ######
+		
+		tc = subr.teamCheck(self, ctx.author.id)
+		if(subr.channelTest(self, ctx) == 1):
+			#Check if user is in team already
+			if(tc == "clear"):								#User is not on a team
+				while True:										#┌--- Checks team ID is doesn't exist and regenerates if it does
+					tempp = str(random.randint(0,1000)) 		#|	#Random 3 digit number for password
+					team = "wj" + tempp.rjust(3,"0") 			#|	#Concatenate wjxxx
+					if(subr.teamCheck(self, team) == "clear"):	#|
+						break									#|
+				
+				newTeam = [team, ctx.author.id]				#Creates a new list with the assigned team name in index 0 and the "leader" in index 1
+				self.teams.append(newTeam)					#Adds the list to self.teams
+				self.customs.append(team)
+				await ctx.send(ctx.author.mention + " added to the Roster")
+				subr.save(self)
+				try:										#Try to DM user with info
+					await ctx.author.send("You've created a team on the Roster, your team is " + team + ". Let your team mates know to join using this team name!")
+				except:										#Temp, auto-delete message that tells user to allow DMs
+					tm = await ctx.send(ctx.author.mention + " - You have created a team, but are not set to receive DMs from users of this Discord. Please fix this and rerun the command to receive your team name")
+					await asyncio.sleep(10)
+					await tm.delete()
+			else:
+				try:										#Try to DM user with info
+					await ctx.author.send("You're already on a team, your team is " + self.teams[tc][0] + ". Let your team mates know to join using this team name!")
+				except:										#Temp, auto-delete message that tells user to allow DMs
+					tm = await ctx.send(ctx.author.mention + " - You have created a team, but are not set to receive DMs from users of this Discord. Please fix this and rerun the command to receive your team name")
+					await asyncio.sleep(10)
+					await tm.delete()
+					
+	@commands.command(pass_context=True)
+	async def teamJoin(self, ctx, tj=""):
+		await ctx.message.delete()
+		###### START OF CHECKS ######
+		if(subr.checkBlacklist(self, ctx) == 1):
+			try:
+				await ctx.author.send("You have been blacklisted and cannot join Wacky's roster. If you don't know why, please PM a moderator on Discord.")
+			except:
+				None
+			return
+		if ctx.author.id in self.customs:
+			tm = await ctx.send(ctx.author.mention + " you are on the Roster as a solo player, please remove yourself (!removeme) first.")
+			await asyncio.sleep(3)
+			await tm.delete()
+			return
+		if ctx.author.id in self.chosen:
+			tm = await ctx.send(ctx.author.mention + " you have already been picked to play on Wacky's team once. You cannot do so again today.")
+			await asyncio.sleep(3)
+			await tm.delete()
+			return
+		###### END OF CHECKS ######
+		
+		if(tj==""): return
+		tc = subr.teamCheck(self, ctx.author.id)
+		if(subr.channelTest(self, ctx) == 1):
+			if(tc == "clear"):									#User is not on a team
+				tji = subr.teamCheck(self, tj)					#Find and store index of team to join
+				if(tji == "clear"): return
+				team = self.teams[tji][0]
+				if(len(self.teams[tji])>3):																		#Checks if team is full
+					tm = await ctx.send(ctx.author.mention + " cannot join this team as it is already full")	#Mentions user telling them team is full
+					await asyncio.sleep(5)																		#\
+					tm.delete()																					#Deletes previous message
+					return																						#Ends running of command
+				#If team is not full
+				self.teams[tji].append(ctx.author.id)			#Adds user to team
+				await ctx.send(ctx.author.mention + " added to the Roster")
+				subr.save(self)
+				try:
+					await ctx.author.send("You have joined team - " + team + "!")			#Attempt DM
+				except:
+					tm = await ctx.send(ctx.author.mention + " you have joined a team!")	#Mention in channel and elete message after 3 seconds
+					await asyncio.sleep(3)													#
+					tm.delete()																#
+			else:											#User is already on a team
+				try:
+					await ctx.author.send("You are already on a team, please type !teamLeave if you want to leave the team")			#Attempt DM
+				except:
+					tm = await ctx.send(ctx.author.mention + " is already on a team, please type !teamLeave if you want to leave the team")	#Mention in channel and elete message after 3 seconds
+					await asyncio.sleep(3)																									#
+					tm.delete()																												#
 	
 	@commands.command(pass_context=True)
 	async def removeme(self, ctx):																#Command to remove yourself from the roster
 		if(subr.channelTest(self, ctx) == 1):
 			await ctx.message.delete()
-			a = ctx.message.author
+			a = ctx.author
+			tc = subr.teamCheck(self, ctx.author.id)
 			if a.id in self.chosen:
 				try:
 					await ctx.author.send("You have already been picked, you can't be be picked again.")
@@ -275,12 +399,30 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 				def is_mentioned(m):
 					return ctx.author in m.mentions
 				await ctx.channel.purge(limit=100, check=is_mentioned)
+				subr.save(self)
 				try:
 					await ctx.author.send("You have been removed from the Roster")
 				except:
 					rt = await ctx.send(user.mention + " - You have been removed from the Roster, cannot DM this user.")
 					await asyncio.sleep(3)
 					await rt.delete()
+			#Check Teams#
+			elif(tc != "clear"):
+				self.teams[tc].remove(ctx.author.id)
+				def is_mentioned(m):
+					return ctx.author in m.mentions
+				await ctx.channel.purge(limit=100, check=is_mentioned)
+				subr.save(self)
+				if(len(self.teams[tc])<2):
+					self.customs.remove(self.teams[tc][0])
+					del self.teams[tc]
+				subr.save(self)
+				try:
+					await ctx.author.send("You have been removed from the Roster")
+				except:
+					tm = await ctx.send(user.mention + " - You have been removed from the Roster, cannot DM this user.")
+					await asyncio.sleep(3)
+					await tm.delete()
 			else:
 				try:
 					await ctx.author.send("You are not on the Roster")
@@ -304,6 +446,262 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 	
 	@commands.command(pass_context=True)
 	async def pick(self, ctx, limit=1):
+		if(subr.channelTest(self, ctx) == 1):									#Check for DM Channel
+			if(subr.roleCheck(self, ctx.author)):								#Check for user rights
+				if(len(self.customs) < 1):										#\
+					await ctx.send("Roster is empty")							#Checks is Rsoter is empty
+					return														#/
+					
+				if(limit > 3): limit = 3										#Pick no more than 3
+				totalPicked = 0													#Variable for total players picked
+				rounds = 0														#Limit of iterations before manual intervention
+				tm = []															#Array for users that cannot be pinged
+				pps = []
+				
+				while(totalPicked < limit):										#Begin loop until players picked is the same as limit
+					subr.clearEmptyTeams(self)								#To-Do = Check for players who have played to remove their ID
+					if(len(self.customs) == 0):
+						await ctx.send("Roster is empty")
+						break
+						
+					rounds+=1													#Increment rounds
+					
+					if((limit - totalPicked) == 3):
+						await ctx.send("Picking 3 ...")
+						solos = [s for s in self.customs if isinstance(s, int)]
+						solos = solos + ([s[1] for s in self.customs if(isinstance(s, list) and len(s) == 2)])
+						qTeams = []												#Temporary array to hold new teams
+						hTeam = []
+						for u in self.customs:
+							try:
+								isTeam = u[0][:2]
+							except:
+								continue
+							if(isTeam == "wj"):
+								h = len([x for x in u if isinstance(x, int)])
+								if(h == 3):
+									qTeams.append(u)
+								elif(h == 2):
+									#h = len([x for x in hTeam if isinstance(x, int)])
+									hTeam = [s for s in u if isinstance(s, int)]
+									if(len(solos)>0):
+										hTeam.append(solos[0])
+									qTeams.append(hTeam)
+									hTeam = []
+								else:
+									continue
+						ran = random.randint(0, (len(qTeams)-1))
+						pps = qTeams[ran]
+					elif((limit - totalPicked) == 2):
+						await ctx.send("Picking 2 ...")
+						solos = [s for s in self.customs if isinstance(s, int)]
+						solos = solos + ([s[1] for s in self.customs if(isinstance(s, list) and len(s) == 2)])
+						qTeams = []
+						
+						for u in self.customs:
+							try:
+								isTeam = u[0][:2]
+							except:
+								continue
+							h = len([x for x in u if isinstance(x, int)])
+							if(h == 2):
+								qTeams.append(u)
+						temp = None
+						if len(solos) % 2 == 1:
+							qTeams.append(solos.pop())
+						qTeams = qTeams + [solos[i:i+2] for i in range(0, len(solos), 2)]
+						ran = random.randint(0, (len(qTeams)-1))
+						pps = qTeams[ran]
+					elif((limit - totalPicked) == 1):
+						await ctx.send("Picking 1 ...")
+						solos = [s for s in self.customs if isinstance(s, int)]
+						solos = solos + ([s[1] for s in self.customs if(isinstance(s, list) and len(s) == 2)])
+						ran = random.randint(0, (len(solos)-1))
+						pps = solos[ran]
+					
+					#Automated Moving#
+					await ctx.send(qTeams)
+					pickedNames = []
+					pickedUsers = []
+					tm = []
+					if(isinstance(pps, int)):
+						pps = [pps]
+					
+					if(limit==1):
+						a = self.svr.get_member(pps)
+						pickedNames.append(a.mention)
+						pickedUsers.append(pps)
+						self.chosen.append(pps)
+						subr.save(self)
+					else:
+						await ctx.send(pps)
+						for u in pps:
+							try:
+								isTeamName = u[:2]
+							except:
+								isTeamName = None
+							if(isTeamName == "wj"):
+								continue
+							a = self.svr.get_member(u)
+							pickedNames.append(a.mention)
+							pickedUsers.append(u)
+							self.chosen.append(u)
+							try:
+								await a.send("You have been picked for WackyJacky101's Custom Match Team! Please join the Waiting Room voice chat! <https://discord.gg/aYdYxBn>")							#Attempt to DM the user with a link to quickly join the voice chat channel.
+							except:
+								tm.append(a.mention) #Add to temp message for mentioning
+							
+					try:
+						await ctx.send(", ".join(pickedNames) + ": Please join the Waiting Room voice chat") #Tag all users in one message
+					except:
+						try:
+							await self.thunder.send(str(pickedNames)) #Send names to Thunder in DM for debugging
+						except:
+							None
+				
+					#Can't DM#
+					if(len(tm)>0):
+						tempmess = await ctx.send(", ".join(tm) + ": Cannot receive DMs from WJBot. Please change these under Server Settings")
+						await asyncio.sleep(10)
+						await tempmess.delete()
+					
+					await asyncio.sleep(10)
+					for i in self.waitr.members:
+						for j in pickedUsers:
+							if(i.id == j):
+								totalPicked = totalPicked + 1
+								await i.edit(voice_channel = self.streamr)
+								
+					if(rounds==3):
+						await ctx.send("Picking Complete. Players missing from current team: " + str(limit-totalPicked))
+						break
+						
+	
+	@commands.command(pass_context=True)
+	async def npick(self, ctx, limit=1):
+		if(subr.channelTest(self, ctx) == 1):									#Check for DM Channel
+			if(subr.roleCheck(self, ctx.author)):								#Check for user rights
+			
+				if(len(self.customs) < 1):										#\
+					await ctx.send("Roster is empty")							#Checks if Roster is empty
+					return														#/
+					
+				if(limit > 3): limit = 3										#Pick no more than 3
+				totalPicked = 0													#Variable for total players picked
+				rounds = 0														#Limit of iterations before manual intervention
+				tm = []															#Array for users that cannot be pinged
+				
+				while(totalPicked < limit):										#Begin loop until players picked is the same as limit
+					tagged = 0													#Tracking users that have successfully been picked and awaiting notification
+					pickedUsers = []											#Array for picked users
+					pickedNames = []											#Array for picked users names
+					rounds+=1													#Increment rounds
+					
+					while(tagged < (limit-totalPicked)):
+						if(len(self.customs) == 0):
+							await ctx.send("Roster is empty")
+							break
+						
+						ran = random.randint(0, (len(self.customs)-1))
+						
+						##If a team is picked##
+						try:
+							isTeam = self.customs[ran][:2]
+						except:
+							isTeam = None
+						if(isTeam == "wj"):
+							tp = subr.teamCheck(self, self.customs[ran])		#\
+							tp = self.teams[tp][1:]								#Pulls team members into new list
+							if(len(tp)>(limit - totalPicked - tagged)):			#Check it won't pick too many players in total
+								rounds = rounds + 1								#If so, repick
+								continue										#and increment rounds to prevent infinite loop
+							
+							del self.customs[ran]								#Clear team from customs array, can't be repicked
+														
+							for u in tp:										#Iterate each player in the team
+								try:
+									mem = self.svr.get_member(u)				#Store user data
+								except:
+									await self.thunder.send("Issue with ID: " + u)	#If an issue occurs, ping Thunder with ID
+									continue
+								
+								self.chosen.append(u)							#Add to chosen list, can't readd themselves
+								subr.save(self)									#Save data
+								
+								try:
+									pickedUsers.append(u)
+									pickedNames.append(mem.mention)
+									def is_mentioned(m):										#\
+										return mem in m.mentions								# - Removes all mentions in the last 100 messages of the chosen member
+									await ctx.channel.purge(limit=100, check=is_mentioned)		#/
+								except:
+									await self.thunder.send("ID: " + u + " has produced an error")	#DM Thunder if an error occurs with ID or user
+									
+								try:
+									await mem.send("You have been picked for WackyJacky101's Custom Match Team! Please join the Waiting Room voice chat! <https://discord.gg/aYdYxBn>")							#Attempt to DM the user with a link to quickly join the voice chat channel.
+								except:
+									tm.append(mem.mention) #Add to temp message for mentioning
+									
+								tagged = tagged + 1			#Increment tagged as player successfully picked
+						else:	#SOLOS#
+							u = self.customs[ran]
+							self.chosen.append(u)
+							self.customs.remove(u)
+							subr.save(self)
+							
+							mem = self.svr.get_member(u)
+							
+							try:
+								pickedUsers.append(u)
+								pickedNames.append(mem.mention)
+								def is_mentioned(m):										#\
+									return mem in m.mentions								# - Removes all mentions in the last 100 messages of the chosen member
+								await ctx.channel.purge(limit=100, check=is_mentioned)	#/
+							except:
+								await self.thunder.send("ID: " + u + " has produced an error")	#DM Thunder if an error occurs with ID or user
+								
+							try:
+								await mem.send("You have been picked for WackyJacky101's Custom Match Team! Please join the Waiting Room voice chat! <https://discord.gg/aYdYxBn>")							#Attempt to DM the user with a link to quickly join the voice chat channel.
+							except:
+								tm.append(mem.mention) 	#Add to temp message for mentioning
+								
+							tagged = tagged + 1			#Increment tagged as player successfully picked
+					
+					if(tagged==0):
+						if(rounds==3):
+							break
+					else:
+						#Automated Moving
+						try:
+							await ctx.send(", ".join(pickedNames) + ": Please join the Waiting Room voice chat")	#Tag all users in one message about joining the voice channel
+						except:
+							try:
+								await self.thunder.send(str(pickedNames))		#If above fails, try to send Thunder a list of the names
+							except:
+								None
+						
+						#Can't DM#
+						if(len(tm)>0):
+								tempmess = await ctx.send(", ".join(tm) + ": Cannot receive DMs from WJBot. Please change these under Server Settings")
+								await asyncio.sleep(10)
+								await tempmess.delete()
+								tm = []
+						
+						await asyncio.sleep(90)
+						for i in self.waitr.members:
+							for j in pickedUsers:
+								if (i.id == j):
+									totalPicked = totalPicked + 1
+									await i.edit(voice_channel = self.streamr)
+									
+						if(totalPicked == limit):
+							None
+						elif(rounds == 3):
+							await ctx.send(self.rm.mention + " - Picking Complete - " + str(limit-totalPicked) + " players missing from current team!")
+							break
+	
+	@commands.command(pass_context=True)
+	async def xpick(self, ctx, limit=1):
 		if(subr.channelTest(self, ctx) == 1):
 			if (subr.roleCheck(self, ctx.author)):
 				if(limit > 3): limit = 3
@@ -324,9 +722,12 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 								break
 							ran = random.randint(0, (len(self.customs)-1))			#Pick a random index between 0 and the length of the self.customs array
 							
-							await self.thunder.send("ran = " + str(ran) + " | cuid = " + str(self.customs[ran]) + " | total = " + str(len(self.customs)))
-							
-							mem = self.svr.get_member(self.customs[ran])		#Retry obtaining members info
+							#### If team picked ####
+							if(self.customs[ran][:2] == "wj"):
+								continue
+							else:
+								return
+							mem = self.svr.get_member(self.customs[ran])			#Retry obtaining members info
 							
 							self.chosen.append(self.customs[ran])					# Remove player's ability to rejoin the roster or get picked again
 							del self.customs[ran]									#/
@@ -354,6 +755,7 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 							except:
 								tm.append(mem.mention)							#Adds user mention to variable so they can be mentioned as NOT having DMs enabled.
 							tagged = tagged + 1
+							
 						try:
 							await ctx.send(", ".join(pickedNames) + ": Please join the Waiting Room voice chat")	#Tag all users in one message about joining the voice channel
 						except:
@@ -432,7 +834,10 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 				noms = []
 				if spt == "names":																		#-\
 					for nom in self.customs:
-						noms.append(self.svr.get_member(nom).mention)
+						if type(nom) is Discord.member:
+							noms.append(self.svr.get_member(nom).mention)
+						else:
+							noms.append(nom)
 					noms = "Customs Roster Total: " + str(count) + "\n" + ", ".join(noms)				#--Begins the start of the send_message but stores to avoid pinging up to 21 times!
 					
 					try:
@@ -447,6 +852,7 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 		if(subr.channelTest(self, ctx) == 1):
 			self.customs = []
 			self.chosen = []
+			self.teams = []
 			subr.save(self)
 			await ctx.send("Roster has been reset")
 	
@@ -466,7 +872,6 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 	async def roster_end(self, ctx):
 		if(subr.channelTest(self, ctx) == 1):
 			if((subr.roleCheck(self, ctx.message.author)) and (str(ctx.message.channel.name) in self.channels)):
-				self.rSwitch = 0																#Turns the Roster off
 				del self.customs[:]																#\
 				del self.chosen[:]																#-- Resets self.customs and self.chosen lists
 				subr.save(self)
