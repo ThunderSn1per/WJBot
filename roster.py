@@ -174,7 +174,7 @@ class subr(BaseCog):
 					
 		for a in self.customs:							#
 			if isinstance(a, list):						#Clears empty teams
-				if(len(a) == 1 and a[0][:2] == "wj"):	#
+				if(len(a) == 1 and a[0][:2] == "grp"):	#
 					self.customs.remove(a)				#
 		subr.save(self)									#Save after clearing empty teams
 		
@@ -305,7 +305,7 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 			if(tc == "clear"):								#User is not on a team
 				while True:										#┌--- Checks team ID is doesn't exist and regenerates if it does
 					tempp = str(random.randint(0,1000)) 		#|	#Random 3 digit number for password
-					team = "wj" + tempp.rjust(3,"0") 			#|	#Concatenate wjxxx
+					team = "grp" + tempp.rjust(3,"0") 			#|	#Concatenate wjxxx
 					if(subr.teamCheck(self, team) == "clear"):	#|
 						break									#|
 				
@@ -477,7 +477,7 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 								isTeam = u[0][:2]
 							except:
 								continue
-							if(isTeam == "wj"):
+							if(isTeam == "grp"):
 								h = len([x for x in u if isinstance(x, int)])
 								if(h == 3):
 									qTeams.append(u)
@@ -540,7 +540,7 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 								isTeamName = u[:2]
 							except:
 								isTeamName = None
-							if(isTeamName == "wj"):
+							if(isTeamName == "grp"):
 								continue
 							a = self.svr.get_member(u)
 							pickedNames.append(a.mention)
@@ -609,7 +609,7 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 							isTeam = self.customs[ran][:2]
 						except:
 							isTeam = None
-						if(isTeam == "wj"):
+						if(isTeam == "grp"):
 							tp = subr.teamCheck(self, self.customs[ran])		#\
 							tp = self.teams[tp][1:]								#Pulls team members into new list
 							if(len(tp)>(limit - totalPicked - tagged)):			#Check it won't pick too many players in total
@@ -723,7 +723,7 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 							ran = random.randint(0, (len(self.customs)-1))			#Pick a random index between 0 and the length of the self.customs array
 							
 							#### If team picked ####
-							if(self.customs[ran][:2] == "wj"):
+							if(self.customs[ran][:2] == "grp"):
 								continue
 							else:
 								return
