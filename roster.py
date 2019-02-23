@@ -174,7 +174,7 @@ class subr(BaseCog):
 					
 		for a in self.customs:							#
 			if isinstance(a, list):						#Clears empty teams
-				if(len(a) == 1 and a[0][:2] == "grp"):	#
+				if(len(a) == 1 and a[0][:3] == "grp"):	#
 					self.customs.remove(a)				#
 		subr.save(self)									#Save after clearing empty teams
 		
@@ -723,7 +723,7 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 							ran = random.randint(0, (len(self.customs)-1))			#Pick a random index between 0 and the length of the self.customs array
 							
 							#### If team picked ####
-							if(self.customs[ran][:2] == "grp"):
+							if(self.customs[ran][:3] == "grp"):
 								continue
 							else:
 								return
