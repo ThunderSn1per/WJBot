@@ -128,7 +128,7 @@ class subr(BaseCog):
 		self.customs = json.load(open(self.path + "roster.json"))
 		self.chosen = json.load(open(self.path + "chosen.json"))
 		dict = json.load(open(self.path + "misc.json"))
-		self.bans = json.load(open(self.path + "bans.json"))
+		#self.bans = json.load(open(self.path + "bans.json"))
 		self.discordBans = json.load(open(self.path + "dBans.json"))
 		self.faceitBans = json.load(open(self.path + "fBans.json"))
 		self.bansLog = json.load(open(self.path + "bansLog.json"))
@@ -139,6 +139,14 @@ class subr(BaseCog):
 		
 		self.pwdate = dict["pwdate"]
 		self.champs = dict["champs"]
+	
+	def genTeam(self):
+		while True:										#┌--- Checks team ID is doesn't exist and regenerates if it does
+			tempp = str(random.randint(0,1000)) 		#|	#Random 3 digit number for password
+			team = "grp" + tempp.rjust(3,"0") 			#|	#Concatenate wjxxx
+			if(subr.teamCheck(self, team) == "clear"):	#|
+				return team								#|
+				break									#|
 	
 	def roleCheck(self, user):
 		uRoles = []
@@ -164,13 +172,14 @@ class subr(BaseCog):
 		
 	def clearEmptyTeams(self):
 		for p in self.customs:							#
-			if(isinstance(p, list)):					#
-				for q in self.chosen:					#Remove players who have already played
-					if q in p:							#
-						p.remove(q)		#
-			else:
-				if p in self.chosen:
-					self.customs.remove(p)
+			team = subr.teamCheck(self, p)				#
+			if(team=="clear"):							#
+				if p in self.chosen:					#
+					self.customs.remove(p)				#
+			else:										# - Remove players who have already played
+				for q in self.chosen:					#
+					if(q in self.teams[team]): 			#
+						self.teams[team].remove(q)		#			
 					
 		for a in self.customs:							#
 			if isinstance(a, list):						#Clears empty teams
@@ -194,13 +203,13 @@ class subr(BaseCog):
 					else:
 						await message.delete()
 						
-			if(str(message.channel.name) == "access"):
+			if(str(message.channel) == "access"):
 				if(message.content == "!acceptrules"):
 					return
 				else:
 					await message.delete()
 					
-			if(str(message.channel.name) == "general_chat"):
+			if(str(message.channel) == "general_chat"):
 				if "http" in message.content or "www" in message.content:
 					if(subr.roleCheck(self, message.author)):
 						return
@@ -465,91 +474,163 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 						break
 						
 					rounds+=1													#Increment rounds
+					qTeams = []
 					
 					if((limit - totalPicked) == 3):
-						await ctx.send("Picking 3 ...")
 						solos = [s for s in self.customs if isinstance(s, int)]
-						solos = solos + ([s[1] for s in self.customs if(isinstance(s, list) and len(s) == 2)])
-						qTeams = []												#Temporary array to hold new teams
-						hTeam = []
-						for u in self.customs:
+						for s in self.customs:
 							try:
-								isTeam = u[0][:2]
+								isTeam = s[:3]
 							except:
 								continue
-							if(isTeam == "grp"):
-								h = len([x for x in u if isinstance(x, int)])
-								if(h == 3):
-									qTeams.append(u)
-								elif(h == 2):
-									#h = len([x for x in hTeam if isinstance(x, int)])
-									hTeam = [s for s in u if isinstance(s, int)]
-									if(len(solos)>0):
-										hTeam.append(solos[0])
-									qTeams.append(hTeam)
-									hTeam = []
-								else:
+								
+							i = subr.teamCheck(self, s)
+							if(len(self.teams[i]) == 2 and isinstance(self.teams[i][1], int)):
+								solos.append(self.teams[i][1])
+						#solos = solos + ([s[1] for s in self.customs if(isinstance(s, list) and len(s) == 2 and isinstance(s[1], int))])
+						#SOLOS SET IN VARIABLE 'solos'#
+						
+						for s in self.customs:
+							try:
+								isTeam = s[:3]
+							except:
+								continue
+							
+							i = subr.teamCheck(self, s)
+							hTeam = [s for s in self.teams[i] if isinstance(s, int)]
+							if(len(hTeam) == 3):
+								qTeams.append(hTeam)
+								hTeam = []
+							elif(len(hTeam) < 3):
+								if(len(hTeam) == 1):
 									continue
-						ran = random.randint(0, (len(qTeams)-1))
+								while(len(hTeam)<3):
+									if(len(solos)<2):
+										break
+									ran = random.randint(0, (len(solos)-1))
+									hTeam.append(solos[ran])
+									del solos[ran]
+								qTeams.append(hTeam)
+								hTeam = []
+						#DUOS PAIRED WITH SOLOS#
+						hTeam = []
+						while(len(solos)>0):
+							ran = random.randint(0, (len(solos)-1))
+							hTeam.append(solos[ran])
+							del solos[ran]
+							if(len(hTeam) == 3):
+								qTeams.append(hTeam)
+								hTeam = []
+							if(len(solos) == 0 and len(hTeam) < 3):
+								break
+						
+						#Random Pick#
+						qTeams = [x for x in qTeams if x != []]
+						qTeams = [x for x in qTeams if len(x) > 2]
+						try:
+							ran = random.randint(0, (len(qTeams)-1))
+						except:
+							rounds = 3
+							await ctx.send("Insufficient player count!")
+							break
 						pps = qTeams[ran]
 					elif((limit - totalPicked) == 2):
-						await ctx.send("Picking 2 ...")
 						solos = [s for s in self.customs if isinstance(s, int)]
-						solos = solos + ([s[1] for s in self.customs if(isinstance(s, list) and len(s) == 2)])
-						qTeams = []
-						
-						for u in self.customs:
+						for s in self.customs:
 							try:
-								isTeam = u[0][:2]
+								isTeam = s[:3]
 							except:
 								continue
-							h = len([x for x in u if isinstance(x, int)])
-							if(h == 2):
-								qTeams.append(u)
-						temp = None
-						if len(solos) % 2 == 1:
-							qTeams.append(solos.pop())
-						qTeams = qTeams + [solos[i:i+2] for i in range(0, len(solos), 2)]
-						ran = random.randint(0, (len(qTeams)-1))
+								
+							i = subr.teamCheck(self, s)
+							if(len(self.teams[i]) == 2 and isinstance(self.teams[i][1], int)):
+								solos.append(self.teams[i][1])
+						#solos = solos + ([s[1] for s in self.customs if(isinstance(s, list) and len(s) == 2 and isinstance(s[1], int))])
+						#SOLOS SET IN VARIABLE 'solos'#
+						
+						for s in self.customs:
+							try:
+								isTeam = s[:3]
+							except:
+								continue
+							
+							i = subr.teamCheck(self, s)
+							hTeam = [s for s in self.teams[i] if isinstance(s, int)]
+							if(len(hTeam) == 3):
+								continue
+							elif(len(hTeam) < 3):
+								if(len(hTeam) == 1):
+									continue
+								while(len(hTeam)<2):
+									if(len(solos)<2):
+										break
+									ran = random.randint(0, (len(solos)-1))
+									hTeam.append(solos[ran])
+									del solos[ran]
+								qTeams.append(hTeam)
+								hTeam = []
+						#DUOS PAIRED WITH SOLOS#
+						hTeam = []
+						while(len(solos)>0):
+							ran = random.randint(0, (len(solos)-1))
+							hTeam.append(solos[ran])
+							del solos[ran]
+							if(len(hTeam) == 2):
+								qTeams.append(hTeam)
+								hTeam = []
+							if(len(solos) == 0 and len(hTeam) < 2):
+								break
+						
+						#Random Pick#
+						qTeams = [x for x in qTeams if x != []]
+						qTeams = [x for x in qTeams if len(x) > 1]
+						try:
+							ran = random.randint(0, (len(qTeams)-1))
+						except:
+							rounds = 3
+							await ctx.send("Insufficient player count!")
+							break
 						pps = qTeams[ran]
-					elif((limit - totalPicked) == 1):
-						await ctx.send("Picking 1 ...")
+					else:
 						solos = [s for s in self.customs if isinstance(s, int)]
-						solos = solos + ([s[1] for s in self.customs if(isinstance(s, list) and len(s) == 2)])
-						ran = random.randint(0, (len(solos)-1))
+						for s in self.customs:
+							try:
+								isTeam = s[:3]
+							except:
+								continue
+								
+							i = subr.teamCheck(self, s)
+							if(len(self.teams[i]) == 2 and isinstance(self.teams[i][1], int)):
+								solos.append(self.teams[i][1])
+						
+						#Random Pick#
+						try:
+							ran = random.randint(0, (len(solos)-1))
+						except:
+							rounds = 3
+							await ctx.send("Insufficient player count!")
+							break
 						pps = solos[ran]
-					
-					#Automated Moving#
-					await ctx.send(qTeams)
+						#SOLOS SET#
+						
+					#v AUTOMATED MOVING v#
 					pickedNames = []
 					pickedUsers = []
 					tm = []
+					
 					if(isinstance(pps, int)):
 						pps = [pps]
 					
-					if(limit==1):
-						a = self.svr.get_member(pps)
+					for u in pps:
+						a = self.svr.get_member(u)
 						pickedNames.append(a.mention)
-						pickedUsers.append(pps)
-						self.chosen.append(pps)
+						pickedUsers.append(u)
+						self.chosen.append(u)
 						subr.save(self)
-					else:
-						await ctx.send(pps)
-						for u in pps:
-							try:
-								isTeamName = u[:2]
-							except:
-								isTeamName = None
-							if(isTeamName == "grp"):
-								continue
-							a = self.svr.get_member(u)
-							pickedNames.append(a.mention)
-							pickedUsers.append(u)
-							self.chosen.append(u)
-							try:
-								await a.send("You have been picked for WackyJacky101's Custom Match Team! Please join the Waiting Room voice chat! <https://discord.gg/aYdYxBn>")							#Attempt to DM the user with a link to quickly join the voice chat channel.
-							except:
-								tm.append(a.mention) #Add to temp message for mentioning
+						'''try:
+							a.send("You have been picked for WackyJacky101's Custom Match Team! Please join the Waiting Room voice chat! <https://discord.gg/aYdYxBn>")								#Attempt to DM the user with a link to quickly join the voice chat channel.
+						except:
+							tm.append(a.mention) #Add to temp message for mentioning'''
 							
 					try:
 						await ctx.send(", ".join(pickedNames) + ": Please join the Waiting Room voice chat") #Tag all users in one message
@@ -558,13 +639,13 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 							await self.thunder.send(str(pickedNames)) #Send names to Thunder in DM for debugging
 						except:
 							None
-				
+							
 					#Can't DM#
 					if(len(tm)>0):
 						tempmess = await ctx.send(", ".join(tm) + ": Cannot receive DMs from WJBot. Please change these under Server Settings")
 						await asyncio.sleep(10)
 						await tempmess.delete()
-					
+						
 					await asyncio.sleep(10)
 					for i in self.waitr.members:
 						for j in pickedUsers:
@@ -575,6 +656,33 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 					if(rounds==3):
 						await ctx.send("Picking Complete. Players missing from current team: " + str(limit-totalPicked))
 						break
+	'''	
+					
+							
+					try:
+						await ctx.send(", ".join(pickedNames) + ": Please join the Waiting Room voice chat") #Tag all users in one message
+					except:
+						try:
+							await self.thunder.send(str(pickedNames)) #Send names to Thunder in DM for debugging
+						except:
+							None
+				
+						#Can't DM#
+						if(len(tm)>0):
+							tempmess = await ctx.send(", ".join(tm) + ": Cannot receive DMs from WJBot. Please change these under Server Settings")
+							await asyncio.sleep(10)
+							await tempmess.delete()
+					
+					await asyncio.sleep(10)
+					for i in self.waitr.members:
+						for j in pickedUsers:
+							if(i.id == j):
+								totalPicked = totalPicked + 1
+								await i.edit(voice_channel = self.streamr)
+								
+					if(rounds==3):
+						await ctx.send("Picking Complete. Players missing from current team: " + str(limit-totalPicked))
+						break'''
 	
 	@commands.command(pass_context=True)
 	async def timeout(self, ctx, usr: discord.Member, days, reason):
@@ -753,6 +861,7 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 				self.passw = "wj" + tempp.rjust(3,"0") #Concatenate wjxxx
 				await self.wacky.send("Password for customs has been set to - %s" % self.passw)
 				self.passmsg = await self.suppann.send("@here The supporter password for customs is **'%s'** - Please remember do **NOT** share this password with anyone and enjoy the customs!" % self.passw)
+				await self.suppan.send("^^^ Password has been reset, please use this one! ^^^")
 	
 	@commands.command(pass_context=True)
 	async def rhelp(self, ctx):																							#Whispers users/mod the commands they can use
