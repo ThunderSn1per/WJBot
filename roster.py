@@ -16,7 +16,7 @@ BaseCog = getattr(commands, "Cog", object)
 class subr(BaseCog):
 	def __init__(self, bot):
 		self.bot = bot
-		self.rSwitch = 1																		#Toggle Switch to open/close roster - 0/1 = Close/Open
+		self.rSwitch = 1																		#Roster Master Switch, always on
 		self.mRoles = ["Roster Manager", "You know who", "WackyBot", "Moderator"]				#Moderator roles
 		self.pRoles = ["Stealth", "Pro", "Chicken Dinner", "Prestige", "Elite"]					#Patreon Roles
 		self.sRoles = ["Twitch Subscriber"]														#Supporter Roles
@@ -32,16 +32,11 @@ class subr(BaseCog):
 		self.thunder = self.svr.get_member(201303438452064256)									#Variable for ThunderSn1per's ID
 		self.wackyclub = self.svr.get_channel(378590577769316352)								#Variable for #the_wacky_club's ID
 		self.suppann = self.svr.get_channel(506534514219024384)									#Variable for #supporter_announcements' ID
-		self.discordbans = self.svr.get_channel(377116857812910080)								#Unused variable currently
 		self.botlog = self.svr.get_channel(370677704174993417)									#Variable for #bot_log's ID
 		self.waitr = self.svr.get_channel(406520047134048256)									#Variable for 'Waiting Room for WJ Stream' voice channel
 		self.streamr = self.svr.get_channel(373851080011939850)									#Variable for 'WJ Stream' voice channel
 		self.rm = self.svr.get_role(421679811577118720)											#Variable for 'Roster Manager' role
-		self.bans = []																			#Array for bans
-		self.champs = []																		#Array for Champions
 		self.path = "/root/.local/share/Red-DiscordBot/cogs/CogManager/cogs/roster/"			#Path for main cog, used to keep all external data links in one folder
-		self.discordBans = []
-		self.bansLog = []
 		self.passmsg = None
 		self.blacklist = [168309055578701824]													#Blacklisted IDs of users that will NEVER be picked for customs
 		subr.load(self)																			#Run the load() function
@@ -60,7 +55,6 @@ class subr(BaseCog):
 			self.passmsg = await self.suppann.send("The supporter password for customs is **'%s'** - Please remember do **NOT** share this password with anyone and enjoy the customs!" % self.passw)
 		self.waitr = self.svr.get_channel(406520047134048256) #Waiting Room ID
 		subr.load(self)
-		self.rSwitch = 1
 		#Customs Roster Channel Permissions
 		for a in self.svr.roles:
 			if (str(a) in self.sRoles) or (str(a) in self.pRoles):
@@ -75,52 +69,16 @@ class subr(BaseCog):
 		#Waiting Room Permissions
 		await self.svr.get_channel(406520047134048256).set_permissions(self.svr.default_role, read_messages = True, connect = False)
 	
-	async def closeRoster(self, msg: discord.Message):
-		self.rSwitch = 0														#Turns the Roster off
-		self.bloc = 0															#Allows the @here message upon opening
-		for a in self.svr.roles:												#----- Denies users read/send messages permissions
-			if (str(a) in self.sRoles) or (str(a) in self.pRoles):				#---/
-				await msg.channel.set_permissions(a, send_messages = False, read_messages = True)
-	
-	async def banCheck(self, passive=0):
-		if str(datetime.now().strftime("%H")) == "00":
-			curdate = str(datetime.now().strftime("%d-%m-%Y"))
-			count = -1
-			for m in self.bans:
-				count += 1
-				if m[2] == curdate:
-					role = discord.utils.get(self.svr.roles, id=475261440953942029)
-					tu = self.svr.get_member(int(m[0]))
-					await tu.remove_roles(role)
-					try: await tu.send("You are no longer timed out, please adhere to the rules in future")
-					except: None
-					pprint(self.bansLog)
-					self.bansLog.append(m[0])
-					pprint(self.bansLog)
-					del self.bans[count]
-					subr.save(self)
-			await asyncio.sleep(3600)
-			subr.banCheck(self, 0)
-		else:
-			await asyncio.sleep(3600)
-			subr.banCheck(self, 0)
-	
 	def save(self):
 		with open(self.path + "roster.json", 'w') as outfile:
 			json.dump(self.customs, outfile)
 		with open(self.path + "chosen.json", 'w') as outfile:
 			json.dump(self.chosen, outfile)
-		dict = {"pwdate" : self.pwdate, "champs" : self.champs}
+		dict = {"pwdate" : self.pwdate}
 		with open(self.path + "misc.json", 'w') as outfile:
 			json.dump(dict, outfile)
-		with open(self.path + "dBans.json", 'w') as outfile:
-			json.dump(self.discordBans, outfile)
 		with open(self.path + "fBans.json", 'w') as outfile:
 			json.dump(self.faceitBans, outfile)
-		with open(self.path + "bansLog.json", 'w') as outfile:
-			json.dump(self.bansLog, outfile)
-		with open(self.path + "bans.json", 'w') as outfile:
-			json.dump(self.bans, outfile)
 		with open(self.path + "teams.json", "w") as outfile:
 			json.dump(self.teams, outfile)
 			
@@ -128,17 +86,8 @@ class subr(BaseCog):
 		self.customs = json.load(open(self.path + "roster.json"))
 		self.chosen = json.load(open(self.path + "chosen.json"))
 		dict = json.load(open(self.path + "misc.json"))
-		#self.bans = json.load(open(self.path + "bans.json"))
-		self.discordBans = json.load(open(self.path + "dBans.json"))
-		self.faceitBans = json.load(open(self.path + "fBans.json"))
-		self.bansLog = json.load(open(self.path + "bansLog.json"))
 		self.teams = json.load(open(self.path + "teams.json"))
-		
-		if(self.pwdate=="18:04"):
-			subr.banCheck(self, passive=0)
-		
 		self.pwdate = dict["pwdate"]
-		self.champs = dict["champs"]
 	
 	def genTeam(self):
 		while True:										#┌--- Checks team ID is doesn't exist and regenerates if it does
@@ -149,10 +98,7 @@ class subr(BaseCog):
 				break									#|
 	
 	def roleCheck(self, user):
-		uRoles = []
-		for u in user.roles:
-			uRoles.append(str(u))
-		return (set(uRoles).intersection(self.mRoles))
+		return (set([str(role) for role in user.roles]).intersection(self.mRoles))
 	
 	def channelTest(self, ctx):
 		if(ctx.message.guild is None):
@@ -186,38 +132,6 @@ class subr(BaseCog):
 				if(len(a) == 1 and a[0][:3] == "grp"):	#
 					self.customs.remove(a)				#
 		subr.save(self)									#Save after clearing empty teams
-		
-	
-	async def on_message(self, message):
-		if(message.guild is None and message.author.id != 424179093094006785):
-			await message.channel.send("DMs are not allowed")
-		else:
-			if(str(message.channel) == "wacky_roster") and (self.rSwitch == 1):
-				if(subr.roleCheck(self, message.author)):
-					return
-				if(message.author.id == 424179093094006785):
-					return
-				else:
-					if(message.content == "!addme"):
-						return
-					else:
-						await message.delete()
-						
-			if(str(message.channel) == "access"):
-				if(message.content == "!acceptrules"):
-					return
-				else:
-					await message.delete()
-					
-			if(str(message.channel) == "general_chat"):
-				if "http" in message.content or "www" in message.content:
-					if(subr.roleCheck(self, message.author)):
-						return
-					else:
-						message.delete()
-						m = await message.channel.send(message.author.mention + " please read the #rules. No links allowed in #general_chat. Thank you!")
-						await asyncio.sleep(5)
-						await m.delete()
 	
 	async def on_member_join(self, member):																				#Server will still need a landing-page. Some users may have disabled receiving private messages from server users which cancels this
 		try:
@@ -234,14 +148,19 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 	
 	@commands.command(pass_context=True)
 	async def acceptrules(self, ctx):
+		await ctx.message.delete()
 		if(subr.channelTest(self, ctx) == 1):
 			if(str(ctx.channel.name)=="access"):
-				await ctx.message.delete()
 				r = self.svr.get_role(501014583511613460)
 				await ctx.author.add_roles(r)
 	
 	@commands.command(pass_context=True, no_pm=True)
 	async def addme(self, ctx):
+		try:
+			await ctx.message.delete()
+		except:
+			None
+		if(ctx.channel.name != "wacky_roster"): return
 		###### START OF CHECKS ######
 		if(subr.checkBlacklist(self, ctx) == 1):
 			try:
@@ -259,7 +178,6 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 		if(subr.channelTest(self, ctx) == 1):
 			if(str(ctx.message.channel.name) in self.channels) == 0:
 				return
-			await ctx.message.delete()
 			user = ctx.author
 			
 			if(ctx.author.id == 290455355316764682):
@@ -276,19 +194,18 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 					await ctx.author.send("You have already been picked and cannot play again")
 				except:
 					await ctx.send(user.mention + " - You have already been picked. Cannot DM this user.")
-			elif self.rSwitch == 1:																#Otherwise, make sure Roster is on
+			else:
 				self.customs.append(user.id)												#Add user to list
 				subr.save(self)
 				await ctx.send(user.mention + " added to the Roster!")							#Message chat to say user is added
-			else:
-				try:
-					await ctx.author.send("Roster is closed")									#Otherwise, Roster is closed
-				except:
-					await ctx.send(user.mention + " - Roster is closed, cannot DM this user.")
 	
 	@commands.command(pass_context=True)
 	async def teamCreate(self, ctx):
-		await ctx.message.delete()
+		try:
+			await ctx.message.delete()
+		except:
+			None
+		if(ctx.channel.name != "wacky_roster"): return
 		###### START OF CHECKS ######
 		if(subr.checkBlacklist(self, ctx) == 1):
 			try:
@@ -339,7 +256,11 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 					
 	@commands.command(pass_context=True)
 	async def teamJoin(self, ctx, tj=""):
-		await ctx.message.delete()
+		try:
+			await ctx.message.delete()
+		except:
+			None
+		if(ctx.channel.name != "wacky_roster"): return
 		###### START OF CHECKS ######
 		if(subr.checkBlacklist(self, ctx) == 1):
 			try:
@@ -390,9 +311,13 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 					tm.delete()																												#
 	
 	@commands.command(pass_context=True)
-	async def removeme(self, ctx):																#Command to remove yourself from the roster
-		if(subr.channelTest(self, ctx) == 1):
+	async def removeme(self, ctx):
+		try:
 			await ctx.message.delete()
+		except:
+			None
+		if(ctx.channel.name != "wacky_roster"): return															#Command to remove yourself from the roster
+		if(subr.channelTest(self, ctx) == 1):
 			a = ctx.author
 			tc = subr.teamCheck(self, ctx.author.id)
 			if a.id in self.chosen:
@@ -442,8 +367,12 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 	
 	@commands.command(pass_context=True)
 	async def unpick(self, ctx, usr: discord.Member):
-		if(subr.channelTest(self, ctx) == 1):
+		try:
 			await ctx.message.delete()
+		except:
+			None
+		if(ctx.channel.name != "wacky_roster"): return	
+		if(subr.channelTest(self, ctx) == 1):
 			if(subr.roleCheck(self, ctx.author)):
 				uid = usr.id
 				if uid in self.chosen:
@@ -455,6 +384,11 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 	
 	@commands.command(pass_context=True)
 	async def pick(self, ctx, limit=1):
+		try:
+			await ctx.message.delete()
+		except:
+			None
+		if(ctx.channel.name != "wacky_roster"): return	
 		if(subr.channelTest(self, ctx) == 1):									#Check for DM Channel
 			if(subr.roleCheck(self, ctx.author)):								#Check for user rights
 				if(len(self.customs) < 1):										#\
@@ -462,6 +396,8 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 					return														#/
 					
 				if(limit > 3): limit = 3										#Pick no more than 3
+				if(limit == 1): await ctx.send("Picking 1 player ...")
+				else: await ctx.send(f"Picking {limit} players ...")
 				totalPicked = 0													#Variable for total players picked
 				rounds = 0														#Limit of iterations before manual intervention
 				tm = []															#Array for users that cannot be pinged
@@ -646,45 +582,20 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 						await asyncio.sleep(10)
 						await tempmess.delete()
 						
-					await asyncio.sleep(10)
+					await asyncio.sleep(5)
 					for i in self.waitr.members:
 						for j in pickedUsers:
 							if(i.id == j):
 								totalPicked = totalPicked + 1
 								await i.edit(voice_channel = self.streamr)
+							else:
+								await self.thunder.send(i.name + " not picked yet but present")
 								
 					if(rounds==3):
 						await ctx.send("Picking Complete. Players missing from current team: " + str(limit-totalPicked))
 						break
-	'''	
-					
-							
-					try:
-						await ctx.send(", ".join(pickedNames) + ": Please join the Waiting Room voice chat") #Tag all users in one message
-					except:
-						try:
-							await self.thunder.send(str(pickedNames)) #Send names to Thunder in DM for debugging
-						except:
-							None
-				
-						#Can't DM#
-						if(len(tm)>0):
-							tempmess = await ctx.send(", ".join(tm) + ": Cannot receive DMs from WJBot. Please change these under Server Settings")
-							await asyncio.sleep(10)
-							await tempmess.delete()
-					
-					await asyncio.sleep(10)
-					for i in self.waitr.members:
-						for j in pickedUsers:
-							if(i.id == j):
-								totalPicked = totalPicked + 1
-								await i.edit(voice_channel = self.streamr)
-								
-					if(rounds==3):
-						await ctx.send("Picking Complete. Players missing from current team: " + str(limit-totalPicked))
-						break'''
 	
-	@commands.command(pass_context=True)
+	'''@commands.command(pass_context=True)
 	async def timeout(self, ctx, usr: discord.Member, days, reason):
 		if(subr.channelTest(self, ctx) == 1):
 			ctx.message.delete()
@@ -695,21 +606,22 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 				bandate = str(datetime.now() + timedelta(days=(int((days)))+1))
 				bandate = bandate[8:10] + "-" + bandate[5:7] + "-" + bandate[0:4]
 				list = [usr.id, str(usr.name), bandate, reason, str(ctx.author.name), curdate]
-				self.bans.append(list)
-				with open(self.path + "bans.json", 'w') as outfile:
-					json.dump(self.bans, outfile)
 				subr.save(self)
-				bc = self.bansLog.count(str(usr.id))
 				await ctx.send(usr.name + " has been timed out by " + str(ctx.author.name) + " for " + days + " days for the reason of: " + reason)
 				await ctx.author.send(usr.name + "'s total timeouts now stands at: " + str(bc + 1))
 	
 	@commands.command(pass_context = True)
 	async def banChecks(self, ctx):
 		if(subr.channelTest(self, ctx) == 1):
-			await subr.banCheck(self, passive=1)
+			await subr.banCheck(self, passive=1)'''
 	
 	@commands.group(pass_context=True, no_pm=True)
 	async def roster(self, ctx):
+		try:
+			await ctx.message.delete()
+		except:
+			None
+		if(ctx.channel.name != "wacky_roster"): return	
 		if(subr.channelTest(self, ctx) == 1):
 			if(subr.roleCheck(self, ctx.author)):
 				if ctx.invoked_subcommand is None:
@@ -717,13 +629,6 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 						await ctx.author.send("Invalid argument, please type !rhelp for help with commands you can use")
 					except:
 						None
-	
-	@roster.group(pass_context=True, no_pm=True, name="close")
-	async def roster_close(self, ctx):
-		if(subr.channelTest(self, ctx) == 1):
-			if((subr.roleCheck(self, ctx.message.author)) and (str(ctx.message.channel.name) in self.channels)):
-				await subr.closeRoster(self, ctx.message)
-				await ctx.send("@here The Roster is now closed! Please DM the bot using !removeme if you wish to be removed from the Roster", filter=None)	#Display message mentioning all the Roster is now closed
 	
 	@roster.group(pass_context=True, name="list")
 	async def roster_list(self, ctx, spt=""):
@@ -746,7 +651,7 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 				else:
 					await ctx.send("Customs Roster total: " + str(count) + "%s" %(" participant" if count == 1 else " participants"))				#Shows total players left in chat
 	
-	@roster.group(pass_context=True, no_pm=True, name="reset")
+	@roster.group(pass_context=True, name="reset")
 	async def roster_reset(self, ctx):
 		if(subr.channelTest(self, ctx) == 1):
 			self.customs = []
@@ -755,7 +660,7 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 			subr.save(self)
 			await ctx.send("Roster has been reset")
 	
-	@roster.group(pass_context=True, no_pm=True, name="history")
+	@roster.group(pass_context=True, name="history")
 	async def roster_history(self, ctx):
 		if(subr.channelTest(self, ctx) == 1):
 			if((subr.roleCheck(self, ctx.message.author)) and (str(ctx.message.channel.name) in self.channels)):
@@ -767,7 +672,7 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 					await asyncio.sleep(3)
 					cl.delete()
 	
-	@roster.group(pass_context=True, no_pm=True, name="end")
+	@roster.group(pass_context=True, name="end")
 	async def roster_end(self, ctx):
 		if(subr.channelTest(self, ctx) == 1):
 			if((subr.roleCheck(self, ctx.message.author)) and (str(ctx.message.channel.name) in self.channels)):
@@ -785,33 +690,21 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 						await x.set_permissions(self.svr.default_role, read_messages = False)
 				await self.svr.get_channel(406520047134048256).set_permissions(self.svr.default_role, read_messages = False, connect = False)
 	
-	@roster.group(pass_context=True, no_pm=True, name="open")
+	@roster.group(pass_context=True, name="open")
 	async def roster_open(self, ctx):
 		if(subr.channelTest(self, ctx) == 1):
 			if((subr.roleCheck(self, ctx.message.author)) and (str(ctx.message.channel.name) in self.channels)):
 				await subr.openRoster(self, ctx, 1)											
 				await ctx.send("@here Roster for playing with Wacky is now open until further notice. Please type !addme to join, and remember to do !removeme if you can't attend after all. For more information about the queue system please read the pinned message", filter=None)
 	
-	@roster.group(pass_context=True, no_pm=True, name="silent") #Silently open/close the Roster
-	async def roster_silent(self, ctx):
-		if(subr.channelTest(self, ctx) == 1):
-			await ctx.message.delete()
-			if((subr.roleCheck(self, ctx.message.author)) and (str(ctx.message.channel.name) in self.channels)):
-				if self.rSwitch == 0:					#Open
-					await subr.openRoster(self, ctx, 0)
-					await ctx.send("The Roster is now open! Please type !addme to join. For more information about the queue system please read the pinned message.", filter=None)
-				else:									#Close
-					await subr.closeRoster(self, ctx)
-					await ctx.send("The Roster is now closed! Please DM the bot using !removeme if you wish to be removed from the Roster", filter=None)
-	
-	@roster.group(pass_context=True, no_pm=True, name="load") #Load the current Roster, this is used in case the Bot restarts - Automatically called when opening the roster or using silent
+	@roster.group(pass_context=True, name="load") #Load the current Roster, this is used in case the Bot restarts - Automatically called when opening the roster or using silent
 	async def roster_load(self, ctx):
 		if(subr.channelTest(self, ctx) == 1):
 			if((subr.roleCheck(self, ctx.message.author)) and (str(ctx.message.channel.name) in self.channels)):
 				subr.load(self)
 				await ctx.author.send("Roster loaded successfully")
 	
-	@roster.group(pass_context=True, no_pm=True, name="clear")			#Clear the channel of all messages (except pinned) only if the channel is in self.channels
+	@roster.group(pass_context=True, name="clear")			#Clear the channel of all messages (except pinned) only if the channel is in self.channels
 	async def roster_clear(self, ctx):
 		if(subr.channelTest(self, ctx) == 1):
 			if((subr.roleCheck(self, ctx.message.author)) and (str(ctx.message.channel.name) in self.channels)):
@@ -823,19 +716,16 @@ PS. You will not be able to chat for the first 10 minutes. While you wait, pleas
 				await ctx.channel.purge(limit=200, check=is_pinned)
 				cl = await ctx.send("Messages Cleared")
 				await asyncio.sleep(3)
-				await cl.delete()
+				try:
+					await cl.delete()
+				except:
+					None
 	
 	@roster.group(pass_context=True, name="status")
 	async def roster_status(self, ctx):
 		if(subr.channelTest(self, ctx) == 1):
 			await ctx.message.delete()
-			if(subr.roleCheck(self, ctx.author)):
-				whis = "Roster Status:"
-				if self.rSwitch == 0:
-					whis = whis + "\nClosed | "
-				else:
-					whis = whis + "\nOpen | "
-				
+			if(subr.roleCheck(self, ctx.author)):				
 				whis = whis + str(len(self.customs)) + " Participants " if len(self.customs) != 1 else whis + str(len(self.customs)) + " Participant "
 				
 				await ctx.author.send(whis)
